@@ -60,7 +60,7 @@ export default function TransactionsPage() {
     <div style={{ minHeight: "100vh", background: "#0B1020", color: "white", padding: 24 }}>
       <div style={{ maxWidth: 700, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-          <h1 style={{ margin: 0 }}>Add Expense / Income</h1>
+          <h1 style={{ margin: 0 }}>Add Expense</h1>
           <Link to="/dashboard" style={{ color: "#93C5FD", textDecoration: "none" }}>
             ← Back to Dashboard
           </Link>
