@@ -1,13 +1,23 @@
 import { useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import BootPromptPage from "./features/boot/BootPromptPage";
 import LoginPage from "./features/auth/LoginPage";
 import DashboardPage from "./features/dashboard/DashboardPage";
 import TransactionsPage from "./features/transactions/TransactionsPage";
 
 export default function App() {
+  const [bootComplete, setBootComplete] = useState(
+    sessionStorage.getItem("bootComplete") === "true"
+  );
+
   const [isAuthenticated, setIsAuthenticated] = useState(
     localStorage.getItem("isAuthenticated") === "true"
   );
+
+  const handleBootComplete = () => {
+    sessionStorage.setItem("bootComplete", "true");
+    setBootComplete(true);
+  };
 
   const handleLoginSuccess = () => setIsAuthenticated(true);
 
@@ -17,10 +27,17 @@ export default function App() {
     setIsAuthenticated(false);
   };
 
+  // 1) Show sci-fi command prompt first
+  if (!bootComplete) {
+    return <BootPromptPage onBootComplete={handleBootComplete} />;
+  }
+
+  // 2) Then show login
   if (!isAuthenticated) {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;
   }
 
+  // 3) Then app routes
   return (
     <BrowserRouter>
       <div
