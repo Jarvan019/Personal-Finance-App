@@ -1,5 +1,16 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
+import {
+  ComposedChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 
 const cardStyle = {
   background: "#111827",
@@ -16,28 +27,88 @@ const money = (n) =>
     minimumFractionDigits: 2,
   }).format(Number(n || 0));
 
+// Compact currency for axis ticks, e.g. $1,200 -> $1.2k
+const moneyCompact = (n) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(Number(n || 0));
+
+const MONTHS_TO_SHOW = 6;
+
+function monthKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthLabel(date) {
+  return date.toLocaleDateString("en-US", { month: "short" });
+}
+
+// Custom tooltip so it matches the dashboard's dark theme
+function ChartTooltip({ active, payload, label }) {
+  if (!active || !payload || !payload.length) return null;
+
+  return (
+    <div
+      style={{
+        background: "#0F172A",
+        border: "1px solid #334155",
+        borderRadius: 10,
+        padding: "10px 12px",
+        fontSize: 13,
+      }}
+    >
+      <p style={{ margin: "0 0 6px 0", color: "#E5E7EB", fontWeight: 600 }}>{label}</p>
+      {payload.map((p) => (
+        <p key={p.dataKey} style={{ margin: "2px 0", color: p.color }}>
+          {p.name}: {money(p.value)}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [transactions, setTransactions] = useState([]);
 
-  useEffect(() => {
-    const refresh = () => {
-      try {
-        const raw = JSON.parse(localStorage.getItem("transactions") || "[]");
-        setTransactions(Array.isArray(raw) ? raw : []);
-      } catch {
-        setTransactions([]);
-      }
-    };
+  const refresh = useCallback(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem("transactions") || "[]");
+      setTransactions((prev) => {
+        const next = Array.isArray(raw) ? raw : [];
+        // Avoid pointless re-renders/chart re-draws if nothing actually changed
+        return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+      });
+    } catch {
+      setTransactions([]);
+    }
+  }, []);
 
+  useEffect(() => {
     refresh();
-    window.addEventListener("focus", refresh);
+
+    // Fires when another tab changes localStorage
     window.addEventListener("storage", refresh);
+    // Fires when the user tabs back into this window
+    window.addEventListener("focus", refresh);
+    // Fires immediately when this tab writes a transaction — dispatch this
+    // from your Add Income / Add Expense pages right after saving, e.g.:
+    //   localStorage.setItem("transactions", JSON.stringify(updated));
+    //   window.dispatchEvent(new Event("transactions-updated"));
+    window.addEventListener("transactions-updated", refresh);
+    // Fallback poll so the dashboard stays live even if a page forgets
+    // to dispatch the event above (cheap since refresh() no-ops on no change)
+    const interval = setInterval(refresh, 2000);
 
     return () => {
-      window.removeEventListener("focus", refresh);
       window.removeEventListener("storage", refresh);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("transactions-updated", refresh);
+      clearInterval(interval);
     };
-  }, []);
+  }, [refresh]);
 
   const { income, expenses, totalBalance } = useMemo(() => {
     let inc = 0;
@@ -54,6 +125,39 @@ export default function DashboardPage() {
       expenses: exp,
       totalBalance: inc - exp,
     };
+  }, [transactions]);
+
+  // Build the last N months of income vs. expenses vs. net balance
+  const trendData = useMemo(() => {
+    const now = new Date();
+    const buckets = new Map();
+    const order = [];
+
+    for (let i = MONTHS_TO_SHOW - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = monthKey(d);
+      buckets.set(key, { key, month: monthLabel(d), income: 0, expenses: 0 });
+      order.push(key);
+    }
+
+    for (const tx of transactions) {
+      if (!tx.date) continue;
+      const d = new Date(tx.date);
+      if (Number.isNaN(d.getTime())) continue;
+
+      const key = monthKey(d);
+      const bucket = buckets.get(key);
+      if (!bucket) continue; // outside the visible window
+
+      const amount = Number(tx.amount || 0);
+      if (tx.type === "income") bucket.income += amount;
+      if (tx.type === "expense") bucket.expenses += amount;
+    }
+
+    return order.map((key) => {
+      const b = buckets.get(key);
+      return { ...b, net: b.income - b.expenses };
+    });
   }, [transactions]);
 
   const kpis = [
@@ -124,19 +228,44 @@ export default function DashboardPage() {
 
       <section style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, marginBottom: 14 }}>
         <div style={cardStyle}>
-          <h3 style={{ marginTop: 0 }}>Expense Trend (6 months)</h3>
-          <div
-            style={{
-              height: 240,
-              background: "#0F172A",
-              borderRadius: 10,
-              border: "1px dashed #334155",
-              display: "grid",
-              placeItems: "center",
-              color: "#64748B",
-            }}
-          >
-            Line chart placeholder
+          <h3 style={{ marginTop: 0 }}>Income vs. Expenses ({MONTHS_TO_SHOW} months)</h3>
+          <div style={{ height: 260 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={trendData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                <CartesianGrid stroke="#1F2937" vertical={false} />
+                <XAxis
+                  dataKey="month"
+                  stroke="#64748B"
+                  tick={{ fill: "#9CA3AF", fontSize: 12 }}
+                  axisLine={{ stroke: "#334155" }}
+                  tickLine={false}
+                />
+                <YAxis
+                  stroke="#64748B"
+                  tick={{ fill: "#9CA3AF", fontSize: 12 }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={moneyCompact}
+                  width={56}
+                />
+                <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+                <Legend
+                  wrapperStyle={{ fontSize: 12, color: "#9CA3AF" }}
+                  formatter={(value) => <span style={{ color: "#9CA3AF" }}>{value}</span>}
+                />
+                <Bar dataKey="income" name="Income" fill="#22C55E" radius={[4, 4, 0, 0]} barSize={18} />
+                <Bar dataKey="expenses" name="Expenses" fill="#EF4444" radius={[4, 4, 0, 0]} barSize={18} />
+                <Line
+                  type="monotone"
+                  dataKey="net"
+                  name="Net Balance"
+                  stroke="#3B82F6"
+                  strokeWidth={2}
+                  dot={{ r: 3, fill: "#3B82F6" }}
+                  activeDot={{ r: 5 }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
           </div>
         </div>
 

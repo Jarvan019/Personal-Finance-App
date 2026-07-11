@@ -78,13 +78,6 @@ export default function TransactionsPage() {
           }}
         >
           <label>
-            Type
-            <select name="type" value={form.type} onChange={onChange} style={inputStyle}>
-              <option value="expense">Expense</option>
-            </select>
-          </label>
-
-          <label>
             Title
             <input
               name="title"
