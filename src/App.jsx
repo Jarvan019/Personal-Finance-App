@@ -4,7 +4,7 @@ import BootPromptPage from "./features/boot/BootPromptPage";
 import LoginPage from "./features/auth/LoginPage";
 import DashboardPage from "./features/dashboard/DashboardPage";
 import TransactionsPage from "./features/transactions/TransactionsPage";
-
+import IncomePage from "./features/income/IncomePage";
 export default function App() {
   const [bootComplete, setBootComplete] = useState(
     sessionStorage.getItem("bootComplete") === "true"
@@ -71,6 +71,7 @@ export default function App() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/income" element={<IncomePage />} />
       </Routes>
     </BrowserRouter>
   );

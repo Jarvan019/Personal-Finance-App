@@ -1,6 +1,17 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
+const CATEGORY_OPTIONS = [
+  "food",
+  "medicine",
+  "travel",
+  "bills",
+  "alcohol",
+  "vape",
+  "ciggarette",
+  "extra",
+];
+
 export default function TransactionsPage() {
   const [form, setForm] = useState({
     type: "expense",
@@ -19,8 +30,19 @@ export default function TransactionsPage() {
   const onSubmit = (e) => {
     e.preventDefault();
 
+    const amount = Number(form.amount);
+    if (!form.title || !form.date || !form.category || !amount || amount <= 0) {
+      alert("Please complete all required fields with a valid amount.");
+      return;
+    }
+
     const existing = JSON.parse(localStorage.getItem("transactions") || "[]");
-    const newTx = { id: crypto.randomUUID(), ...form, amount: Number(form.amount) };
+    const newTx = {
+      id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
+      ...form,
+      amount,
+    };
+
     localStorage.setItem("transactions", JSON.stringify([newTx, ...existing]));
 
     alert("Transaction saved!");
@@ -38,7 +60,7 @@ export default function TransactionsPage() {
     <div style={{ minHeight: "100vh", background: "#0B1020", color: "white", padding: 24 }}>
       <div style={{ maxWidth: 700, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-          <h1 style={{ margin: 0 }}>Add Transaction</h1>
+          <h1 style={{ margin: 0 }}>Add Expense / Income</h1>
           <Link to="/dashboard" style={{ color: "#93C5FD", textDecoration: "none" }}>
             ← Back to Dashboard
           </Link>
@@ -65,17 +87,49 @@ export default function TransactionsPage() {
 
           <label>
             Title
-            <input name="title" value={form.title} onChange={onChange} required style={inputStyle} />
+            <input
+              name="title"
+              value={form.title}
+              onChange={onChange}
+              required
+              style={inputStyle}
+              placeholder="e.g. Grocery, Salary"
+            />
           </label>
 
           <label>
             Amount
-            <input name="amount" type="number" step="0.01" value={form.amount} onChange={onChange} required style={inputStyle} />
+            <input
+              name="amount"
+              type="number"
+              step="0.01"
+              min="0.01"
+              value={form.amount}
+              onChange={onChange}
+              required
+              style={inputStyle}
+              placeholder="0.00"
+            />
           </label>
 
           <label>
             Category
-            <input name="category" value={form.category} onChange={onChange} placeholder="Food, Salary, Bills..." style={inputStyle} />
+            <select
+              name="category"
+              value={form.category}
+              onChange={onChange}
+              required
+              style={inputStyle}
+            >
+              <option value="" disabled>
+                Select category
+              </option>
+              {CATEGORY_OPTIONS.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                </option>
+              ))}
+            </select>
           </label>
 
           <label>
